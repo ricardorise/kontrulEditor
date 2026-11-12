@@ -197,8 +197,8 @@ export function Timeline(p: Props) {
     if (eh) { drag.current = { kind: "edge", id: eh.s.id, side: eh.side, start: eh.s.start_ms, end: eh.s.end_ms }; return; }
     const b = blockAt(x, y);
     if (b) { p.onSelect(b.id); p.onSeek(b.start_ms); return; }
-    // clique dentro do intervalo marcado não o desfaz (permite o duplo clique)
-    if (p.manual && msOf(x) >= p.manual.start && msOf(x) <= p.manual.end) return;
+    // clique dentro do intervalo marcado não o desfaz (permite o duplo clique), mas arrastar a partir dele começa uma nova seleção
+    if (p.manual && msOf(x) >= p.manual.start && msOf(x) <= p.manual.end) { drag.current = { kind: "scrub", x0: x, moved: false }; return; }
     drag.current = { kind: "scrub", x0: x, moved: false }; p.onSelect(null); p.onManual(null); p.onSeek(clamp(msOf(x), 0, dur));
   };
   const onMove = (e: React.PointerEvent) => {
