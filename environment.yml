@@ -1,0 +1,23 @@
+name: kontrulEditor
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - ffmpeg
+  - pip
+  - pip:
+      - fastapi==0.162.0
+      - uvicorn==0.54.0
+      - SQLAlchemy==2.1.7
+      - alembic==1.20.1
+      - "psycopg[binary]==3.3.8"
+      - "dramatiq[redis]==2.2.1"
+      - pydantic==2.14.3
+      - pydantic-settings==2.16.2
+      - python-multipart==0.0.33
+      - httpx==0.28.1
+      - whisperx==3.8.6
+      - numpy
+      - torch==2.8.0
+      - torchaudio==2.8.0
+      - mcp==2.3.0
+      - pytest==9.2.0

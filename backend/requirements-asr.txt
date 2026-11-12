@@ -1,0 +1,13 @@
+-r requirements.txt
+# Pilha WhisperX (worker-asr). O wheel padrão do torch já traz as bibliotecas CUDA 12.8; o driver vem do host
+# via nvidia-container-toolkit. Sem GPU, cai para CPU/int8.
+whisperx==3.8.6
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+torchcodec==0.7.0
+transformers==4.57.6
+ctranslate2==4.8.5
+faster-whisper==1.2.1
+pyannote-audio==4.0.7
+pandas==3.1.0

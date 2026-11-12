@@ -1,0 +1,23 @@
+# Apenas infraestrutura para desenvolvimento no conda (API/workers rodam no host).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kontrul
+      POSTGRES_PASSWORD: kontrul
+      POSTGRES_DB: kontrul
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kontrul"]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+volumes:
+  pgdata:

@@ -1,0 +1,12 @@
+# Override de GPU. Requer o nvidia-container-toolkit no host. `make up` aplica sozinho quando detecta o runtime nvidia.
+services:
+  worker-asr:
+    environment:
+      KONTRUL_WHISPER_MODEL: ${KONTRUL_WHISPER_MODEL_GPU:-large-v3}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

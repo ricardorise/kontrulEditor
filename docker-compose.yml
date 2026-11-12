@@ -1,0 +1,124 @@
+# Execução completa: make up   (ou: docker compose up -d --build)
+# Pré-requisito: .env com KONTRUL_API_TOKEN e POSTGRES_PASSWORD (make env gera). GPU: docker-compose.gpu.yml.
+# Nome próprio: não compartilha contêineres/volumes com o docker-compose.dev.yml (infra de desenvolvimento).
+name: kontrul
+
+x-app: &app
+  build: { context: ., dockerfile: docker/app.Dockerfile }
+  image: kontrul/app:latest
+  restart: unless-stopped
+  init: true
+  environment: &env
+    KONTRUL_ENV: production
+    KONTRUL_DATABASE_URL: postgresql+psycopg://kontrul:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@postgres:5432/kontrul
+    KONTRUL_REDIS_URL: redis://redis:6379/0
+    KONTRUL_DATA_DIR: /data
+    KONTRUL_API_TOKEN: ${KONTRUL_API_TOKEN:?defina KONTRUL_API_TOKEN no .env}
+    KONTRUL_WHISPER_LANGUAGE: ${KONTRUL_WHISPER_LANGUAGE:-pt}
+    HF_TOKEN: ${HF_TOKEN:-}
+  volumes: [ "data:/data" ]
+
+# LLM opcional (só api e worker o usam). Padrão "none": nada sai da máquina. Defina no .env.
+# Nomes KONTRUL_*: o compose nunca captura chaves que você tenha no shell por acidente.
+x-llm: &llm
+  KONTRUL_LLM_PROVIDER: ${KONTRUL_LLM_PROVIDER:-none}          # none | anthropic | openai | openrouter | ollama
+  KONTRUL_LLM_MODEL: ${KONTRUL_LLM_MODEL:-}
+  KONTRUL_LLM_BASE_URL: ${KONTRUL_LLM_BASE_URL:-}
+  KONTRUL_ANTHROPIC_API_KEY: ${KONTRUL_ANTHROPIC_API_KEY:-}
+  KONTRUL_OPENAI_API_KEY: ${KONTRUL_OPENAI_API_KEY:-}
+  KONTRUL_OPENROUTER_API_KEY: ${KONTRUL_OPENROUTER_API_KEY:-}
+  KONTRUL_OLLAMA_HOST: ${KONTRUL_OLLAMA_HOST:-http://host.docker.internal:11434}   # Ollama rodando no host
+  KONTRUL_LLM_MAX_WINDOWS: ${KONTRUL_LLM_MAX_WINDOWS:-40}
+  KONTRUL_LLM_WINDOW_WORDS: ${KONTRUL_LLM_WINDOW_WORDS:-700}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kontrul
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: kontrul
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kontrul -d kontrul"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]   # fila persiste a reinício
+    volumes: [ "redisdata:/data" ]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:                                              # roda uma vez, aplica as migrações e sai
+    <<: *app
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on: { postgres: { condition: service_healthy } }
+
+  api:
+    <<: *app
+    environment: { <<: [*env, *llm] }
+    extra_hosts: [ "host.docker.internal:host-gateway" ]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+    ports: [ "127.0.0.1:${KONTRUL_API_PORT:-8000}:8000" ]   # só local (útil p/ o adaptador MCP); a UI usa o nginx
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  worker:                                               # ingestão (ffprobe/proxy) e análise
+    <<: *app
+    environment: { <<: [*env, *llm] }
+    extra_hosts: [ "host.docker.internal:host-gateway" ]
+    command: ["dramatiq", "app.workers.tasks", "--queues", "ingest", "analyze", "--processes", "1", "--threads", "2"]
+    depends_on: { api: { condition: service_healthy } }
+
+  worker-render:                                        # render FFmpeg (preview e final)
+    <<: *app
+    command: ["dramatiq", "app.workers.tasks", "--queues", "render", "--processes", "1", "--threads", "1"]
+    depends_on: { api: { condition: service_healthy } }
+    stop_grace_period: 30s
+
+  worker-asr:                                           # WhisperX; GPU via docker-compose.gpu.yml
+    build: { context: ., dockerfile: docker/asr.Dockerfile }
+    image: kontrul/asr:latest
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *env
+      KONTRUL_WHISPER_MODEL: ${KONTRUL_WHISPER_MODEL:-small}   # CPU: small; com GPU o override usa large-v3
+    volumes: [ "data:/data", "hfcache:/cache" ]
+    depends_on: { api: { condition: service_healthy } }
+
+  web:
+    build: { context: ., dockerfile: docker/web.Dockerfile }
+    image: kontrul/web:latest
+    restart: unless-stopped
+    environment:
+      KONTRUL_API_TOKEN: ${KONTRUL_API_TOKEN:?defina KONTRUL_API_TOKEN no .env}
+    ports: [ "${KONTRUL_BIND:-127.0.0.1}:${KONTRUL_WEB_PORT:-8080}:80" ]
+    depends_on: { api: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+volumes:
+  pgdata:
+  redisdata:
+  data:
+  hfcache:

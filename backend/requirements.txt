@@ -1,0 +1,12 @@
+# Imagem leve (api, worker, worker-render, migrate). Mesmas versões do ambiente conda testado.
+fastapi==0.162.0
+uvicorn==0.54.0
+SQLAlchemy==2.1.7
+alembic==1.20.1
+psycopg[binary]==3.3.8
+dramatiq[redis]==2.2.1
+pydantic==2.14.3
+pydantic-settings==2.16.2
+python-multipart==0.0.33
+httpx==0.28.1
+numpy==2.4.6
