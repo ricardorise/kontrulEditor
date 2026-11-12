@@ -410,3 +410,18 @@ def test_db_pool_is_larger_than_server_threadpool():
     """Regressão: com pool (15) < threads do anyio (40), 100 clientes travavam a API (deadlock de sessão/thread)."""
     assert settings.db_pool_size + settings.db_max_overflow > 40
     assert settings.db_pool_timeout_s <= 15  # falha rápida (503) em vez de travar por 30 s
+
+
+# ---------- campos em ms enviados por agentes (MCP/Cursor): 5000.0 e "5000" são aceitos
+def test_int_fields_accept_agent_numbers():
+    import pytest
+    from app.services.timeline import TimelineError, _int
+    assert _int({"k": 5000}, "k", 0) == 5000
+    assert _int({"k": 5000.0}, "k", 0) == 5000
+    assert _int({"k": "5000"}, "k", 0) == 5000
+    assert _int({"k": 4999.6}, "k", 0) == 5000
+    for bad in (None, "abc", True, float("nan")):
+        with pytest.raises(TimelineError):
+            _int({"k": bad}, "k", 0)
+    with pytest.raises(TimelineError):
+        _int({"k": -1}, "k", 0)

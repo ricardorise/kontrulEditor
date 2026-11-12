@@ -48,6 +48,18 @@ def _clip(asset_id: str, track: str, s_in: int, s_out: int, start: int, mode: st
 
 def _int(op: dict, key: str, minimum: int | None = None, default: int | None = None) -> int:
     v = op.get(key, default)
+    if v is None:
+        raise TimelineError(f"campo '{key}' é obrigatório (inteiro, em ms)", "invalid_payload")
+    # Agentes (MCP/Cursor) costumam enviar 5000.0 ou "5000": aceita número integral/fracionário (arredonda ao ms) e string numérica.
+    if isinstance(v, str):
+        try:
+            v = float(v.strip())
+        except ValueError:
+            raise TimelineError(f"campo '{key}' deve ser inteiro (ms), recebido {v!r}", "invalid_payload") from None
+    if isinstance(v, float):
+        if v != v or v in (float("inf"), float("-inf")):
+            raise TimelineError(f"campo '{key}' deve ser inteiro (ms)", "invalid_payload")
+        v = round(v)
     if isinstance(v, bool) or not isinstance(v, int):
         raise TimelineError(f"campo '{key}' deve ser inteiro (ms)", "invalid_payload")
     if minimum is not None and v < minimum:
