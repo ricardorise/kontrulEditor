@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     env: str = "development"          # "production" exige token forte
     max_upload_bytes: int = 20 * 1024**3
     whisper_model: str = "large-v3"
+    asr_device: str = "auto"              # auto (GPU se houver, senão CPU) | cuda (exige GPU; falha alto) | cpu
     whisper_language: str = "pt"
     hf_token: str = ""
 

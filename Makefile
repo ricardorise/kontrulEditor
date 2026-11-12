@@ -1,7 +1,7 @@
 ENV ?= kontrulEditor
 CONDA_RUN = conda run --no-capture-output -n $(ENV)
 
-.PHONY: env up down logs build ps smoke infra infra-down migrate api worker worker-asr worker-render web test
+.PHONY: gpu-check env up down logs build ps smoke infra infra-down migrate api worker worker-asr worker-render web test
 infra:        ## Postgres + Redis (docker)
 	docker compose -f docker-compose.dev.yml up -d --wait
 infra-down:
@@ -22,7 +22,9 @@ test:
 	cd backend && $(CONDA_RUN) pytest -q
 
 # ---- Docker Compose (execução completa) -------------------------------------------------------------
-GPU_FILE := $(shell docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q nvidia && echo "-f docker-compose.gpu.yml")
+# GPU: detectada automaticamente (scripts/gpu.sh). Force com KONTRUL_GPU=1 (exige GPU) ou KONTRUL_GPU=0 (CPU).
+GPU_MODE := $(or $(filter 1 0,$(KONTRUL_GPU)),$(if $(filter yes,$(shell scripts/gpu.sh)),1,0))
+GPU_FILE := $(if $(filter 1,$(GPU_MODE)),-f docker-compose.gpu.yml)
 COMPOSE  := docker compose -f docker-compose.yml $(GPU_FILE)
 
 env:          ## gera .env com tokens fortes (não sobrescreve)
@@ -31,6 +33,8 @@ env:          ## gera .env com tokens fortes (não sobrescreve)
 build: env
 	$(COMPOSE) build
 up: env       ## sobe tudo (build + migrações + serviços) e espera ficar saudável
+	@scripts/gpu.sh --explain
+	@echo "Modo GPU do worker-asr: $(if $(filter 1,$(GPU_MODE)),LIGADO (large-v3 em CUDA),desligado (CPU, modelo small))"
 	$(COMPOSE) up -d --build --wait
 	@echo "Abra http://localhost:$${KONTRUL_WEB_PORT:-8080}"
 down:
@@ -39,5 +43,7 @@ logs:
 	$(COMPOSE) logs -f --tail=100
 ps:
 	$(COMPOSE) ps
+gpu-check:    ## confirma que o worker-asr enxerga a GPU (CUDA) dentro do contêiner
+	$(COMPOSE) run --rm --no-deps worker-asr python -c "import torch,sys; ok=torch.cuda.is_available(); print('CUDA disponível:', ok, '|', torch.cuda.get_device_name(0) if ok else '-'); sys.exit(0 if ok else 1)"
 smoke:        ## teste ponta a ponta contra o compose em execução
 	conda run --no-capture-output -n $(ENV) python scripts/smoke_compose.py

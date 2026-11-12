@@ -3,6 +3,9 @@ services:
   worker-asr:
     environment:
       KONTRUL_WHISPER_MODEL: ${KONTRUL_WHISPER_MODEL_GPU:-large-v3}
+      KONTRUL_ASR_DEVICE: cuda            # sem GPU visível o job falha com erro claro, em vez de cair em CPU em silêncio
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     deploy:
       resources:
         reservations:

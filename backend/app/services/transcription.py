@@ -14,10 +14,18 @@ _models: dict = {}
 
 
 def _device() -> tuple[str, str]:
-    """GPU quando disponível; sem GPU cai para CPU/int8 (funciona, porém bem mais lento) e avisa no log."""
+    """KONTRUL_ASR_DEVICE: auto = GPU se houver, senão CPU/int8 (mais lento, avisa no log);
+    cuda = exige GPU e falha com mensagem clara (o compose com GPU usa este modo, para não degradar em silêncio); cpu = força CPU."""
     import torch
+    mode = settings.asr_device.lower()
+    if mode == "cpu":
+        return "cpu", "int8"
     if torch.cuda.is_available():
+        logging.getLogger("kontrul.asr").info("GPU: %s", torch.cuda.get_device_name(0))
         return "cuda", "float16"
+    if mode == "cuda":
+        raise RuntimeError("KONTRUL_ASR_DEVICE=cuda, mas o PyTorch não enxerga nenhuma GPU. Verifique o driver NVIDIA e o "
+                           "nvidia-container-toolkit (make gpu-check) ou use KONTRUL_ASR_DEVICE=auto para cair para CPU.")
     logging.getLogger("kontrul.asr").warning("GPU indisponível: transcrição em CPU (mais lenta)")
     return "cpu", "int8"
 

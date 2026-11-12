@@ -22,6 +22,7 @@ Volumes: `data` (mídia, renders — compartilhado entre api/workers), `hfcache`
 - API também em `127.0.0.1:8000` (só local) para o adaptador MCP, que usa o token do `.env`.
 - `KONTRUL_ENV=production`: a API recusa subir com token padrão/curto. `make env` gera tokens aleatórios em `.env` (fora do git).
 - **GPU**: `docker-compose.gpu.yml` reserva a GPU para o `worker-asr` e usa `large-v3`; `make up` aplica o override sozinho se detectar o runtime `nvidia`. **Sem o nvidia-container-toolkit** o worker roda em CPU/int8 com o modelo `small` (funciona, bem mais lento). Instalação (host, requer sudo): `nvidia-container-toolkit` + `sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker`.
+- **GPU sem degradação silenciosa**: `scripts/gpu.sh` detecta runtime nvidia/CDI; o override define `KONTRUL_ASR_DEVICE=cuda`, que faz o ASR falhar com mensagem clara se o PyTorch não enxergar GPU (padrão `auto` mantém o fallback para CPU). `make gpu-check` testa dentro do contêiner; `KONTRUL_GPU=1|0` força o modo.
 - Contêineres rodam como usuário não-root (uid 1000); `init: true` para reaping de processos.
 
 ## Operação

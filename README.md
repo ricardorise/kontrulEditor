@@ -8,7 +8,7 @@ make env     # gera .env com tokens fortes (uma vez)
 make up      # build + migrações + todos os serviços (aplica GPU sozinho se houver nvidia-container-toolkit)
 ```
 Abra **http://localhost:8080** no Chrome. `make ps` · `make logs` · `make smoke` · `make down`.
-Sem GPU no Docker o transcritor roda em CPU (modelo `small`); com o toolkit instalado usa `large-v3` na GPU. Detalhes em `docs/adr/0003-docker-compose.md`.
+`make up` detecta a GPU NVIDIA sozinho (`scripts/gpu.sh`) e mostra o resultado: com o `nvidia-container-toolkit` o transcritor sobe em **CUDA com `large-v3`** e, nesse modo, **falha com erro claro se a GPU não estiver visível** (não cai em CPU em silêncio). Sem GPU roda em CPU (modelo `small`). `make gpu-check` confirma que o contêiner enxerga a GPU; `KONTRUL_GPU=1|0 make up` força ligado/desligado. Detalhes em `docs/adr/0003-docker-compose.md`.
 
 ## Desenvolvimento (conda)
 ```bash
