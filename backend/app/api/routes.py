@@ -409,6 +409,33 @@ def list_suggestions(pid: uuid.UUID, category: str | None = None, status: str | 
     return db.scalars(q.order_by(Suggestion.start_ms)).all()
 
 
+@router.post("/projects/{pid}/scripts/{sid}/youtube-suggestions")
+def youtube_suggestions(pid: uuid.UUID, sid: uuid.UUID, body: schemas.YoutubeSuggestIn, db: Session = Depends(get_session)):
+    """1 a 2 vídeos do YouTube por parágrafo do roteiro, considerando só o que sobrou após os cortes (acionado pelo usuário)."""
+    from app.services import youtube as Y
+    p = _project(db, pid)
+    script = _script(db, pid, sid)
+    main = db.scalar(select(Asset).where(Asset.project_id == pid, Asset.role == "main", Asset.status == "ready")
+                     .order_by(Asset.created_at))
+    tr = db.scalar(select(Transcript).where(Transcript.project_id == pid, Transcript.asset_id == main.id)
+                   .order_by(Transcript.created_at.desc())) if main else None
+    rows = db.scalars(select(ScriptAlignment).where(ScriptAlignment.script_id == sid,
+                                                    ScriptAlignment.transcript_id == (tr.id if tr else None))).all() if tr else []
+    words = db.scalars(select(Word).where(Word.transcript_id == tr.id).order_by(Word.idx)).all() if tr else []
+    rev = TS.get_revision(db, pid, p.current_revision) if p.current_revision else None
+    doc = rev.document_json if rev else None
+    pars = Y.split_paragraphs(script.text)
+    if not pars:
+        raise HTTPException(422, "o roteiro não tem parágrafos (separe por linha em branco)")
+    states = [Y.paragraph_state(x, rows, words, doc, str(main.id) if main else None) for x in pars]
+    if not body.only_kept:
+        states = [dict(s, state="mantido") if s["state"] in ("cortado", "nao_falado") else s for s in states]
+    client = None if body.use_llm is False else llm.get_client()
+    out = Y.suggest(pars, states, body.per_paragraph, client, settings.whisper_language)
+    out["timeline_revision"] = p.current_revision
+    return out
+
+
 @router.post("/projects/{pid}/suggestions", response_model=schemas.SuggestionOut, status_code=201)
 def create_manual_suggestion(pid: uuid.UUID, body: schemas.ManualSuggestionIn, db: Session = Depends(get_session)):
     """Corte marcado à mão pelo usuário: entra na lista de ocorrências já aceito (nada é cortado até aplicar)."""

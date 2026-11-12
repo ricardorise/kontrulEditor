@@ -1,16 +1,21 @@
 import { useMemo, useRef, useState } from "react";
-import type { Alignment, Script, TranscriptFull } from "../types";
+import type { Alignment, Script, TranscriptFull, YoutubeResult } from "../types";
 import { Hint } from "./Hint";
 
 interface Props {
   scripts: Script[]; scriptId: string | null; onScript: (id: string) => void; alignment: Alignment[]; transcript?: TranscriptFull;
   onSave: (text: string) => void; onFile: (f: File) => void; onSeek: (ms: number) => void; onToggle: (a: Alignment) => void;
   onAnalyze: () => void; canAnalyze: boolean; busy: boolean;
+  onYoutube: (perParagraph: 1 | 2, onlyKept: boolean) => Promise<YoutubeResult | null>; rev: number;
 }
 
 export function ScriptPanel(p: Props) {
   const [draft, setDraft] = useState("");
   const file = useRef<HTMLInputElement>(null);
+  const [yt, setYt] = useState<YoutubeResult | null>(null);
+  const [ytBusy, setYtBusy] = useState(false);
+  const [per, setPer] = useState<1 | 2>(1);
+  const [onlyKept, setOnlyKept] = useState(true);
   const script = p.scripts.find((s) => s.id === p.scriptId);
   const segByW0 = useMemo(() => new Map((p.transcript?.segments ?? []).map((s) => [s.w0, s])), [p.transcript]);
 
@@ -44,6 +49,45 @@ export function ScriptPanel(p: Props) {
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} placeholder="Cole aqui o roteiro usado na gravação. Ele serve só como contexto para a IA: nunca substitui o que foi falado." />
         <button className="btn" disabled={!draft.trim()} onClick={() => { p.onSave(draft); setDraft(""); }}>Salvar como nova versão</button>
       </details>
+      {script && (
+        <div className="yt">
+          <div className="toolbar">
+            <button className="btn primary" disabled={ytBusy} onClick={async () => { setYtBusy(true); try { setYt(await p.onYoutube(per, onlyKept)); } finally { setYtBusy(false); } }}
+              title="Procura vídeos no YouTube para cada parágrafo do roteiro que continua no vídeo editado">{ytBusy ? "Buscando…" : "🔎 Buscar vídeos no YouTube por parágrafo"}</button>
+            <label>Vídeos por parágrafo <select value={per} onChange={(e) => setPer(Number(e.target.value) as 1 | 2)}><option value={1}>1</option><option value={2}>2</option></select></label>
+            <label><input type="checkbox" checked={onlyKept} onChange={(e) => setOnlyKept(e.target.checked)} /> só parágrafos que ficaram após os cortes</label>
+          </div>
+          <p className="muted small">Use depois de fazer os cortes. Os termos de cada parágrafo são enviados ao YouTube (e o texto ao LLM, se você tiver configurado um provedor externo).</p>
+          {yt && (
+            <div className="yt-result">
+              {yt.timeline_revision !== p.rev && <div className="banner warn" role="alert">A timeline mudou depois desta busca (r{yt.timeline_revision} → r{p.rev}). Busque de novo para refletir os cortes.</div>}
+              {!yt.api_configured && <div className="banner"><span>Sem chave da YouTube Data API: mostrando só links de busca. Defina <code>KONTRUL_YOUTUBE_API_KEY</code> no <code>.env</code> e reinicie a API para receber vídeos prontos.</span></div>}
+              {yt.errors.map((e, i) => <div key={i} className="banner warn" role="alert">{e}</div>)}
+              <ul className="yt-list">
+                {yt.paragraphs.map((pa) => (
+                  <li key={pa.index} className={`yt-par st-${pa.state}`}>
+                    <div className="yt-head"><b>Parágrafo {pa.index + 1}</b>
+                      <span className={`chip ${pa.state === "mantido" ? "ok" : "warn"}`}>{{ mantido: "no vídeo editado", cortado: "cortado", nao_falado: "não falado", sem_alinhamento: "sem alinhamento" }[pa.state]}</span>
+                      {pa.kept !== null && pa.state === "mantido" && <span className="muted small">{Math.round(pa.kept * 100)}% mantido</span>}</div>
+                    <p className="yt-text">{pa.text.length > 220 ? `${pa.text.slice(0, 220)}…` : pa.text}</p>
+                    {pa.query === null ? <p className="muted small">Ignorado: {pa.reason}</p> : (
+                      <>
+                        <p className="small">Busca: <i>{pa.query}</i> · <a href={pa.search_url ?? "#"} target="_blank" rel="noopener noreferrer">ver todos no YouTube ↗</a></p>
+                        {pa.videos.length ? (
+                          <ul className="yt-videos">{pa.videos.map((v) => (
+                            <li key={v.video_id}><a href={v.url} target="_blank" rel="noopener noreferrer" className="yt-video">
+                              {v.thumbnail && <img src={v.thumbnail} alt="" width={120} height={68} loading="lazy" />}
+                              <span><b>{v.title}</b><br /><span className="muted small">{v.channel}</span></span></a></li>))}</ul>
+                        ) : yt.api_configured && <p className="muted small">Nenhum vídeo novo encontrado para este parágrafo.</p>}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
       {!script ? <div className="empty">Sem roteiro. A análise funciona sem ele; com ele, a IA distingue melhor fala fora do roteiro e tomadas repetidas.</div> : (
         <div className="cols">
           <div className="col">

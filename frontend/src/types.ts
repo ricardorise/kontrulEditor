@@ -57,3 +57,10 @@ export interface PlanStep { text: string; source?: string; recognized: boolean; 
 export interface LlmStatus { provider: string; model: string | null; configured: boolean; external: boolean; message: string }
 export interface LlmReport { status: string; provider?: string; model?: string; windows_used?: number; windows_total?: number; confirmed?: number; rejected?: number; adjusted?: number; new_findings?: number; dropped_invalid?: number; input_tokens?: number; output_tokens?: number; errors?: string[]; message?: string }
 export interface Plan { prompt: string; provider: string; steps: PlanStep[]; operations: Operation[]; decisions: { suggestion_id: string; decision: string }[]; recognized: boolean }
+
+export interface YoutubeVideo { video_id: string; url: string; title: string; channel: string; published_at: string | null; thumbnail: string | null }
+export interface YoutubeParagraph {
+  index: number; text: string; state: "mantido" | "cortado" | "nao_falado" | "sem_alinhamento"; kept: number | null; reason: string;
+  query: string | null; search_url: string | null; videos: YoutubeVideo[];
+}
+export interface YoutubeResult { paragraphs: YoutubeParagraph[]; api_configured: boolean; llm: string | null; errors: string[]; timeline_revision: number }

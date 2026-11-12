@@ -148,6 +148,12 @@ class SuggestionOut(ORM):
     created_at: datetime
 
 
+class YoutubeSuggestIn(BaseModel):
+    per_paragraph: int = Field(default=2, ge=1, le=2)
+    only_kept: bool = True       # só parágrafos que continuam no vídeo editado
+    use_llm: bool | None = None  # None = usa o LLM se estiver configurado
+
+
 class ManualSuggestionIn(BaseModel):
     start_ms: int = Field(ge=0)
     end_ms: int = Field(ge=0)

@@ -13,7 +13,7 @@ import { TranscriptPanel } from "./components/TranscriptPanel";
 import { useAlignment, useAssets, useJobs, useLlmStatus, useProject, useProjects, useRenders, useRules, useScripts, useSuggestedRules, useSuggestions, useTimeline, useTimelineOps, useTranscript, useTranscripts, useWaveform } from "./hooks";
 import { clamp, fmtTime, nextKept, sourceToOutput } from "./timelineMath";
 import { useToast } from "./toast";
-import type { Alignment, Asset, LlmReport, Operation, Plan, ProposalsResult, Rule, Suggestion } from "./types";
+import type { Alignment, Asset, LlmReport, Operation, Plan, ProposalsResult, Rule, Suggestion, YoutubeResult } from "./types";
 
 type Tab = "occ" | "transcript" | "script" | "ai" | "library" | "jobs";
 const TABS: [Tab, string][] = [["occ", "Ocorrências"], ["transcript", "Transcrição"], ["script", "Roteiro"], ["ai", "IA"], ["library", "Biblioteca"], ["jobs", "Jobs"]];
@@ -248,6 +248,10 @@ export default function App() {
                   onSave={(text) => run(async () => { const s = await api<{ id: string }>(`/projects/${pid}/scripts`, { method: "POST", json: { text } }); await inv("scripts"); setScriptId(s.id); }, "Roteiro salvo")}
                   onFile={(f) => run(async () => { const form = new FormData(); form.append("file", f); const s = await api<{ id: string }>(`/projects/${pid}/scripts`, { method: "POST", body: form }); await inv("scripts"); setScriptId(s.id); }, "Roteiro enviado")}
                   onSeek={(ms) => { player.current?.seek(ms); setPlayhead(ms); reveal(ms); }}
+                  rev={rev} onYoutube={async (n, onlyKept) => {
+                    try { return await api<YoutubeResult>(`/projects/${pid}/scripts/${activeScript}/youtube-suggestions`, { method: "POST", json: { per_paragraph: n, only_kept: onlyKept } }); }
+                    catch (e) { toast(e instanceof Error ? e.message : String(e), "error"); return null; }
+                  }}
                   onToggle={(a: Alignment) => run(async () => { await api(`/projects/${pid}/scripts/${activeScript}/alignment/${a.id}`, { method: "PATCH", json: { kind: a.kind === "matched" ? "off_script" : "matched" } }); await inv("alignment"); })}
                   onAnalyze={analyze} canAnalyze={!!tMeta && !!activeScript} busy={false} />}
                 {tab === "ai" && <AIPanel transcripts={mainTranscripts} jobs={jobs.data ?? []} suggestions={sugg} canTranscribe={!!main} hasScript={!!activeScript} busy={false}

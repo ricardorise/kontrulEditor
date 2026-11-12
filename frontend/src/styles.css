@@ -110,3 +110,13 @@ textarea { width: 100%; resize: vertical; } textarea:disabled, button:disabled, 
 .hint-x { background: none; border: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; } .hint-body p { margin: 6px 0; } .hint-body ul { margin: 6px 0; padding-left: 18px; } .hint-body code { background: var(--panel-2); padding: 0 4px; border-radius: 4px; }
 .guide h4 { margin-top: 14px; } .guide-item { border-bottom: 1px solid var(--border); padding: 6px 0; } .guide-item h5 { margin: 4px 0; font-size: 14px; } .guide ol { padding-left: 18px; }
 .modal.guide { width: min(760px, 100%); }
+
+.yt { margin: 8px 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.yt-list, .yt-videos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.yt-par { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; background: var(--panel); }
+.yt-par.st-cortado, .yt-par.st-nao_falado { opacity: .65; }
+.yt-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.yt-text { margin: 4px 0; color: var(--muted); font-size: 12px; }
+.yt-video { display: flex; gap: 10px; align-items: center; color: inherit; text-decoration: none; padding: 4px; border-radius: 4px; }
+.yt-video:hover, .yt-video:focus-visible { background: var(--panel-2); }
+.yt-video img { border-radius: 4px; flex: none; }

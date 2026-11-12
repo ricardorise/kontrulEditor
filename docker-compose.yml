@@ -21,6 +21,7 @@ x-app: &app
 # LLM opcional (só api e worker o usam). Padrão "none": nada sai da máquina. Defina no .env.
 # Nomes KONTRUL_*: o compose nunca captura chaves que você tenha no shell por acidente.
 x-llm: &llm
+  KONTRUL_YOUTUBE_API_KEY: ${KONTRUL_YOUTUBE_API_KEY:-}      # opcional: busca de vídeos por parágrafo do roteiro
   KONTRUL_LLM_PROVIDER: ${KONTRUL_LLM_PROVIDER:-none}          # none | anthropic | openai | openrouter | ollama
   KONTRUL_LLM_MODEL: ${KONTRUL_LLM_MODEL:-}
   KONTRUL_LLM_BASE_URL: ${KONTRUL_LLM_BASE_URL:-}

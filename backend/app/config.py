@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     ollama_num_ctx: int = 8192
     env: str = "development"          # "production" exige token forte
     max_upload_bytes: int = 20 * 1024**3
+    youtube_api_key: str = ""             # YouTube Data API v3 (opcional): sem ela a busca por parágrafo devolve só links de busca
     whisper_model: str = "large-v3"
     asr_device: str = "auto"              # auto (GPU se houver, senão CPU) | cuda (exige GPU; falha alto) | cpu
     whisper_language: str = "pt"
