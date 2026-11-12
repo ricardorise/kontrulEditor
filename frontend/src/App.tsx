@@ -54,6 +54,9 @@ export default function App() {
   const timeline = useTimeline(pid, rev);
   const doc = rev > 0 && timeline.data ? timeline.data.document : null;
   const ops = useTimelineOps(pid, rev, toast);
+  // Ao existir uma timeline, o player passa a tocar o editado (pulando os cortes) em vez do original.
+  const hasDoc = !!doc;
+  useEffect(() => { if (hasDoc) setMode((m) => (m === "original" ? "edited" : m)); }, [hasDoc, pid]);
 
   const assetList = assets.data ?? [];
   const mainAsset = assetList.find((a) => a.role === "main");
