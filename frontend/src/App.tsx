@@ -26,6 +26,7 @@ export default function App() {
   const setPid = (id?: string) => { setPidState(id); if (id) localStorage.setItem("kontrul_project", id); };
   const [tab, setTab] = useState<Tab>("occ");
   const [selected, setSelected] = useState<string | null>(null);
+  const [manual, setManual] = useState<{ start: number; end: number } | null>(null);
   const [playhead, setPlayhead] = useState(0);
   const [mode, setMode] = useState<PlayMode>("original");
   const [view, setView] = useState<View>({ startMs: 0, msPerPx: 50 });
@@ -109,6 +110,10 @@ export default function App() {
   };
   const decide = (id: string, decision: "accept" | "reject" | "adjust", start?: number, end?: number) =>
     run(async () => { await api(`/projects/${pid}/suggestions/${id}/decision`, { method: "POST", json: { decision, start_ms: start, end_ms: end } }); await inv("suggestions"); });
+  const addManual = (r: { start: number; end: number }) => run(async () => {
+    const s = await api<Suggestion>(`/projects/${pid}/suggestions`, { method: "POST", json: { start_ms: r.start, end_ms: r.end, asset_id: main?.id } });
+    await inv("suggestions"); setManual(null); setSelected(s.id); setTab("occ");
+  }, "Corte manual adicionado à lista (aceito). Use ✂ Cortar para aplicar.");
   const cut = (ids: string[]) => run(async () => {
     if (!main) return;
     for (const id of ids) {
@@ -271,7 +276,7 @@ export default function App() {
               <button className="btn" onClick={() => zoom(0.8)} aria-label="Aumentar zoom">+</button>
             </div>
             {main ? <Timeline main={main} doc={doc} suggestions={sugg} selectedId={selected} playhead={playhead} view={view} waveform={waveform.data}
-              snapPoints={snapPoints} assets={assetList} onView={setView} onSelect={select}
+              snapPoints={snapPoints} assets={assetList} onView={setView} onSelect={select} manual={manual} onManual={setManual} onManualAdd={addManual}
               onSeek={(ms) => { player.current?.seek(ms); setPlayhead(ms); }}
               onAdjust={(id, s, e) => void decide(id, "adjust", s, e)}
               onDropAsset={(id, ms) => { const a = assetList.find((x) => x.id === id); if (!a) return; if (!doc) toast("Inicie a edição antes de inserir mídias.", "error"); else setInsert({ asset: a, sourceMs: ms }); }} />

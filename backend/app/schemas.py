@@ -148,6 +148,13 @@ class SuggestionOut(ORM):
     created_at: datetime
 
 
+class ManualSuggestionIn(BaseModel):
+    start_ms: int = Field(ge=0)
+    end_ms: int = Field(ge=0)
+    asset_id: uuid.UUID | None = None  # padrão: vídeo principal
+    note: str | None = Field(default=None, max_length=500)
+
+
 class DecisionIn(BaseModel):
     decision: str = Field(pattern="^(accept|reject|adjust)$")
     reason: str | None = None

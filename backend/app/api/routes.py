@@ -409,6 +409,31 @@ def list_suggestions(pid: uuid.UUID, category: str | None = None, status: str | 
     return db.scalars(q.order_by(Suggestion.start_ms)).all()
 
 
+@router.post("/projects/{pid}/suggestions", response_model=schemas.SuggestionOut, status_code=201)
+def create_manual_suggestion(pid: uuid.UUID, body: schemas.ManualSuggestionIn, db: Session = Depends(get_session)):
+    """Corte marcado à mão pelo usuário: entra na lista de ocorrências já aceito (nada é cortado até aplicar)."""
+    _project(db, pid)
+    if body.end_ms <= body.start_ms:
+        raise HTTPException(422, "end_ms deve ser maior que start_ms")
+    if body.asset_id:
+        a = db.get(Asset, body.asset_id)
+        if not a or a.project_id != pid:
+            raise HTTPException(404, "asset não encontrado")
+    else:
+        a = db.scalar(select(Asset).where(Asset.project_id == pid, Asset.role == "main", Asset.status == "ready")
+                      .order_by(Asset.created_at))
+        if not a:
+            raise HTTPException(409, "projeto sem vídeo principal pronto")
+    if a.duration_ms and body.end_ms > a.duration_ms:
+        raise HTTPException(422, "intervalo além da duração do vídeo")
+    s = Suggestion(project_id=pid, asset_id=a.id, start_ms=body.start_ms, end_ms=body.end_ms, category="manual",
+                   rationale=body.note or "Corte marcado manualmente.", evidence=None, confidence=None,
+                   status="accepted", origin="manual")
+    db.add(s)
+    db.commit()
+    return s
+
+
 @router.post("/projects/{pid}/suggestions/{sid}/decision", response_model=schemas.SuggestionOut)
 def decide(pid: uuid.UUID, sid: uuid.UUID, body: schemas.DecisionIn, db: Session = Depends(get_session)):
     return _decide(db, pid, sid, body)

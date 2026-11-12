@@ -11,7 +11,7 @@ export interface Job {
   progress: number; timeline_revision: number | null; result: Record<string, unknown> | null;
   error: { code: string; message: string } | null; created_at: string;
 }
-export type Category = "speech_error" | "off_script" | "repetition" | "valid";
+export type Category = "speech_error" | "off_script" | "repetition" | "valid" | "manual";
 export interface Suggestion {
   id: string; asset_id: string | null; script_id: string | null; start_ms: number; end_ms: number; category: Category;
   rationale: string; evidence: { level?: string; rule?: string; reasons?: string[]; removed_text?: string; redo_text?: string;

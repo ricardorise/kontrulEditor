@@ -8,6 +8,7 @@ export const CAT: Record<Category, { color: string; label: string; short: string
   off_script: { color: "#f5c542", label: "Fora do roteiro", short: "FORA" },
   repetition: { color: "#9d7bff", label: "Repetição", short: "REPET" },
   valid: { color: "#3dd68c", label: "Trecho válido", short: "OK" },
+  manual: { color: "#4da3ff", label: "Corte manual", short: "MANUAL" },
 };
 
 const LANE = { ruler: 26, sugg: 36, clips: 40, wave: 54, overlay: 26, gap: 4 };
@@ -18,6 +19,7 @@ interface Props {
   main: Asset; doc: TimelineDoc | null; suggestions: Suggestion[]; selectedId: string | null; playhead: number; view: View;
   waveform?: Waveform; snapPoints: number[]; assets: Asset[];
   onView: (v: View) => void; onSeek: (ms: number) => void; onSelect: (id: string | null) => void;
+  manual: { start: number; end: number } | null; onManual: (r: { start: number; end: number } | null) => void; onManualAdd: (r: { start: number; end: number }) => void;
   onAdjust: (id: string, start: number, end: number) => void; onDropAsset: (assetId: string, sourceMs: number) => void;
 }
 
@@ -26,7 +28,7 @@ export function Timeline(p: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 800, h: 240 });
   const [draft, setDraft] = useState<{ id: string; start: number; end: number } | null>(null);
-  const drag = useRef<null | { kind: "scrub" } | { kind: "edge"; id: string; side: "start" | "end"; start: number; end: number }>(null);
+  const drag = useRef<null | { kind: "scrub"; x0: number; moved: boolean } | { kind: "edge"; id: string; side: "start" | "end"; start: number; end: number }>(null);
   const dur = p.main.duration_ms ?? 0;
   const overlays = useMemo(() => (p.doc ? overlayClips(p.doc) : []), [p.doc]);
   const tracks = useMemo(() => [...new Set(overlays.map((c) => c.track_id))], [overlays]);
@@ -134,6 +136,16 @@ export function Timeline(p: Props) {
       }
     }
 
+    // intervalo marcado à mão (arrastar na timeline; duplo clique adiciona à lista)
+    if (p.manual) {
+      const x0 = xOf(p.manual.start), x1 = Math.max(xOf(p.manual.end), x0 + 2);
+      g.fillStyle = "rgba(77,163,255,.22)"; g.fillRect(x0, 0, x1 - x0, size.h);
+      g.strokeStyle = "#4da3ff"; g.lineWidth = 2; g.strokeRect(x0 + 1, 1, x1 - x0 - 2, size.h - 2); g.lineWidth = 1;
+      g.fillStyle = "#fff"; g.textBaseline = "top";
+      g.fillText(`${fmtTime(p.manual.start)} → ${fmtTime(p.manual.end)} (${((p.manual.end - p.manual.start) / 1000).toFixed(1)} s)`, Math.max(x0, 0) + 6, lanes.sugg + 3);
+      g.fillText("duplo clique para adicionar", Math.max(x0, 0) + 6, lanes.sugg + 18); g.textBaseline = "middle";
+    }
+
     // playhead
     const px = Math.round(xOf(p.playhead)) + 0.5;
     if (px >= 0 && px <= size.w) {
@@ -141,6 +153,12 @@ export function Timeline(p: Props) {
       g.fillStyle = col("--accent"); g.beginPath(); g.moveTo(px - 6, 0); g.lineTo(px + 6, 0); g.lineTo(px, 9); g.fill();
     }
   }, [p, size, draft, lanes, tracks, overlays, xOf, msOf, dur]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!p.manual) return;
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") p.onManual(null); };
+    window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
+  }, [p.manual, p.onManual]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- zoom (Ctrl/⌘+roda) e pan (roda)
   useEffect(() => {
@@ -179,12 +197,20 @@ export function Timeline(p: Props) {
     if (eh) { drag.current = { kind: "edge", id: eh.s.id, side: eh.side, start: eh.s.start_ms, end: eh.s.end_ms }; return; }
     const b = blockAt(x, y);
     if (b) { p.onSelect(b.id); p.onSeek(b.start_ms); return; }
-    drag.current = { kind: "scrub" }; p.onSelect(null); p.onSeek(clamp(msOf(x), 0, dur));
+    // clique dentro do intervalo marcado não o desfaz (permite o duplo clique)
+    if (p.manual && msOf(x) >= p.manual.start && msOf(x) <= p.manual.end) return;
+    drag.current = { kind: "scrub", x0: x, moved: false }; p.onSelect(null); p.onManual(null); p.onSeek(clamp(msOf(x), 0, dur));
   };
   const onMove = (e: React.PointerEvent) => {
     const { x, y } = pos(e), d = drag.current;
     if (!d) { canvas.current!.style.cursor = edgeHit(x, y) ? "col-resize" : blockAt(x, y) ? "pointer" : "crosshair"; return; }
-    if (d.kind === "scrub") return p.onSeek(clamp(msOf(x), 0, dur));
+    if (d.kind === "scrub") {
+      if (!d.moved && Math.abs(x - d.x0) < 4) return;
+      d.moved = true;
+      const snapMs = (ms: number) => Math.round(snap(clamp(ms, 0, dur), p.snapPoints, 6 * p.view.msPerPx));
+      const a = snapMs(msOf(d.x0)), b = snapMs(msOf(x));
+      return p.onManual(Math.abs(b - a) >= 100 ? { start: Math.min(a, b), end: Math.max(a, b) } : null);
+    }
     const cands = [...p.snapPoints, p.playhead, ...p.suggestions.filter((s) => s.id !== d.id).flatMap((s) => [s.start_ms, s.end_ms])];
     const v = Math.round(snap(clamp(msOf(x), 0, dur), cands, 8 * p.view.msPerPx));
     const nd = d.side === "start" ? { start: Math.min(v, d.end - 100), end: d.end } : { start: d.start, end: Math.max(v, d.start + 100) };
@@ -195,6 +221,11 @@ export function Timeline(p: Props) {
     if (d?.kind === "edge" && draft) { const orig = p.suggestions.find((s) => s.id === d.id); if (orig && (orig.start_ms !== draft.start || orig.end_ms !== draft.end)) p.onAdjust(d.id, draft.start, draft.end); }
     setDraft(null);
   };
+  const onDouble = (e: React.MouseEvent) => {
+    if (!p.manual) return;
+    const ms = msOf(pos(e).x);
+    if (ms >= p.manual.start && ms <= p.manual.end) p.onManualAdd(p.manual);
+  };
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault(); const id = e.dataTransfer.getData("application/x-kontrul-asset");
     if (id) p.onDropAsset(id, clamp(msOf(pos(e).x), 0, dur));
@@ -204,12 +235,13 @@ export function Timeline(p: Props) {
   return (
     <div ref={wrap} className="timeline-wrap">
       <canvas ref={canvas} role="img" aria-label={summary} style={{ width: size.w, height: size.h, touchAction: "none" }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onDoubleClick={onDouble}
         onDragOver={(e) => e.preventDefault()} onDrop={onDrop} />
       <div className="timeline-legend" aria-hidden="true">
         <span><i style={{ background: CAT.speech_error.color }} /> ERRO</span>
         <span><i className="hatch" style={{ background: CAT.off_script.color }} /> FORA do roteiro</span>
         <span><i style={{ background: CAT.repetition.color }} /> REPETIÇÃO</span>
+        <span><i style={{ background: CAT.manual.color }} /> MANUAL (arraste na timeline)</span>
         <span><i className="cut" /> cortado</span>
       </div>
     </div>

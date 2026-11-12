@@ -60,7 +60,7 @@ export function Occurrences(p: Props) {
                 {s.evidence?.level && <span className={`chip lvl-${s.evidence.level}`}>{LEVEL[s.evidence.level] ?? s.evidence.level}</span>}
                 <span className={`chip st-${s.status}`}>{STATUS[s.status]}</span>
                 {cut && <span className="chip cut">no corte</span>}
-                {s.origin !== "rules" && <span className="chip llm" title={`Origem: ${s.origin}`}>🤖 LLM</span>}
+                {s.origin !== "rules" && s.origin !== "manual" && <span className="chip llm" title={`Origem: ${s.origin}`}>🤖 LLM</span>}
                 {s.evidence?.llm?.disputed && <span className="chip bad" title="O LLM discorda desta sugestão; revise com atenção">LLM discorda</span>}
               </div>
               <p className="occ-text">{excerpt(p.words, s.start_ms, s.end_ms) || s.evidence?.removed_text || "—"}</p>
